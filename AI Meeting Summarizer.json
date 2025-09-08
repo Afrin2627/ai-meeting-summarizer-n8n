@@ -1,0 +1,271 @@
+{
+  "name": "AI Meeting Summarizer.",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "630cbdca-0705-4ae4-ab40-61b4b4737041",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfa95cc3-4990-461d-8666-c8e5fd5438a1",
+              "name": "meeting_title",
+              "value": "Weekly Growth Sync - Test Run",
+              "type": "string"
+            },
+            {
+              "id": "dd403353-e560-4d68-929e-3b10f3d32d5b",
+              "name": "transcript",
+              "value": "Afrin: Website conversion dropped from 2.8% to 2.3%. Priya: Suggest allocating more budget to ads. Shannu: Risks are budget overruns.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        384,
+        -16
+      ],
+      "id": "c52ab912-3a2a-4c54-ae71-53c935d9ae4f",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        592,
+        -16
+      ],
+      "id": "9d5692d2-3fa9-486e-90c0-95935b727f3b",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "GPT-3.5-TURBO"
+        },
+        "messages": {
+          "values": [
+            {},
+            {
+              "content": "You are a meeting notes assistant. Return ONLY strict JSON matching this schema:\n{\n  \"summary\": \"string (markdown bullets)\",\n  \"action_items\": [\n    {\"owner\":\"string or null\",\"task\":\"string\",\"due\":\"YYYY-MM-DD or null\"}\n  ],\n  \"risks\": [\"string\"]\n}\nDo not include code fences or extra text. If owners/dates are missing, set them to null.\n",
+              "role": "system"
+            },
+            {
+              "content": "=Title: [$json.meeting_title]\n\nTranscript:\n[$json.transcript]\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1008,
+        -16
+      ],
+      "id": "7c173c4c-a2e4-4852-8333-39a5c964ee65",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "xhjq5bEbQcfduZX4",
+          "name": "OpenAi account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// OpenAI response sometimes comes as plain text or structured\nconst raw = $json.message || $json.data || $json.text || $json.content || $json;\nlet obj;\n\ntry {\n  obj = typeof raw === \"string\" ? JSON.parse(raw) : raw;\n} catch (e) {\n  throw new Error(\"OpenAI did not return valid JSON. Try lowering temperature or check prompt.\");\n}\n\nreturn [{\n  meeting_title: $json.meeting_title || \"Meeting Notes\",\n  summary: obj.summary || \"\",\n  action_items: obj.action_items || [],\n  risks: obj.risks || []\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -16
+      ],
+      "id": "0f59e7df-087f-4367-a65e-0e77491d2605",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "trigger": [
+          "channel_created"
+        ],
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.slackTrigger",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        -16
+      ],
+      "id": "a0e394ae-87a0-485d-bf4b-a25c42a682b4",
+      "name": "Slack Trigger",
+      "webhookId": "6c7b54f7-187c-4d07-b672-700b0ecb23a5",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#new-channel",
+          "mode": "name"
+        },
+        "text": "=📌 *{{$json.meeting_title}}*  *Summary* {{$json.summary}}  *Action Items* {{ $json.action_items.map((x,i)=>`${i+1}. ${x.task} ${x.owner?`(@${x.owner})`:''} ${x.due?`(due ${x.due})`:''}`).join('\\n') }}  *Risks* {{ $json.risks.length ? $json.risks.map((r,i)=>`${i+1}. ${r}`).join('\\n') : '—' }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        1712,
+        128
+      ],
+      "id": "c0b2fece-6360-45ac-87d2-3831399df85e",
+      "name": "Send a message",
+      "webhookId": "72adf594-6e56-4ad7-9692-aecbe51a2423",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "zHR3eJWbl9X650gw",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-3.5-turbo\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a meeting notes assistant. Return ONLY strict JSON matching this schema: {\\\"summary\\\": \\\"string (markdown bullets)\\\", \\\"action_items\\\": [{\\\"owner\\\":\\\"string or null\\\",\\\"task\\\":\\\"string\\\",\\\"due\\\":\\\"YYYY-MM-DD or null\\\"}], \\\"risks\\\": [\\\"string\\\"]} Do not include code fences or extra text.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Title: {{$json.meeting_title}}\\n\\nTranscript:\\n{{$json.transcript}}\"\n    }\n  ],\n  \"temperature\": 0\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        -16
+      ],
+      "id": "bd9f38b2-080f-496c-b876-7be71f5e042c",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "56cf3280-095e-4b1e-9baa-212e6e9adfd2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dae814bceebea9acb70abb2ee5075c03c231e501d0a959bac3850b0732134d56"
+  },
+  "id": "yy8NYFFAZAcm5oaF",
+  "tags": []
+}
